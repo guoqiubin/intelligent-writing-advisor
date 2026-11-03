@@ -1,0 +1,24 @@
+{
+  "name": "intelligent-writing-advisor",
+  "version": "2.1.28",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:sync": "concurrently -k \"vite --host 127.0.0.1 --port 4175\" \"node sync-server.mjs\"",
+    "sync:autostart:install": "node scripts/install-sync-studio-autostart.mjs",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.537",
+    "@remotion/renderer": "^4.0.537",
+    "concurrently": "^10.0.6",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.4.299",
+    "remotion": "4.0.537",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "vite": "^7.1.12"
+  }
+}

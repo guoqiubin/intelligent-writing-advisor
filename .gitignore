@@ -1,0 +1,30 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Local configuration and deployment metadata
+.env
+.env.*
+.vercel/
+
+# macOS/editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Local-only rendering data and logs
+outputs/
+logs/
+work/
+tmp/
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.srt
+
+# Private/local brand asset; use a neutral replacement in a public showcase
+public/todd-avatar.jpg
+
+# Internal deployment notes may contain local access details
+DEPLOYMENT.md
