@@ -2,11 +2,13 @@ export const STORAGE_KEY = "intelligent-writing-advisor-project-v1";
 export const HISTORY_KEY = "intelligent-writing-advisor-history-v1";
 export const COMMUNITY_HISTORY_KEY = "intelligent-writing-advisor-community-history-v1";
 export const BOOK_HISTORY_KEY = "intelligent-writing-advisor-book-history-v1";
-export const APP_VERSION = "v2.1.28";
+export const APP_VERSION = "v2.1.29";
 export const ACCESS_SESSION_KEY = "intelligent-writing-advisor-access-v1";
 export const DEFAULT_PASSWORD_HASH = "98c3a520a665969cfc2d02d68642b04f039540702476d3820023ba577e8d4415";
 
 export const releaseNotes = [
+  "新增：声画同步的上传课件同时支持 PDF 和 PPTX，PPTX 会在本机静默转换为高清页面后继续沿用原有一键生成流程。",
+  "优化：PPTX 转换增加本地转换器回退和超时保护，转换失败时明确提示，不再让页面无响应。",
   "优化：网页每次打开时默认收起左侧导航栏，点击左上角按钮后再展开，减少首页空间占用。",
   "修复：正式渲染前自动压缩高清 PDF 页面，避免 37 页以上文稿重复触发 180MB 上传失败。",
   "新增：渲染前估算素材总量并自动启用第二档压缩，超过安全阈值时提前提示。",

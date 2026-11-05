@@ -75,6 +75,41 @@ function writeDataUrl(dataUrl, filePath) {
   return fs.writeFile(filePath, Buffer.from(encoded, "base64"));
 }
 
+async function convertPptxToPdf(fileDataUrl, fileName) {
+  if (!fileDataUrl || !/\.pptx?$/i.test(String(fileName || ""))) throw new Error("只支持转换 PPTX 课件");
+  await fs.mkdir(outputDir, { recursive: true });
+  const tempDir = await fs.mkdtemp(path.join(outputDir, "pptx-convert-"));
+  const sourcePath = path.join(tempDir, path.basename(fileName).replace(/[^a-z0-9._-]+/gi, "_") || "courseware.pptx");
+  try {
+    await writeDataUrl(fileDataUrl, sourcePath);
+    const outputDirPath = path.join(tempDir, "pdf");
+    await fs.mkdir(outputDirPath, { recursive: true });
+    const converters = [
+      process.env.PPTX_CONVERTER_BIN,
+      "soffice",
+      "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+      process.env.WPS_OFFICE_BIN,
+      "/Applications/wpsoffice.app/Contents/MacOS/wpsoffice"
+    ].filter(Boolean);
+    let lastError;
+    for (const converter of converters) {
+      try {
+        await execFileAsync(converter, ["--headless", "--convert-to", "pdf", "--outdir", outputDirPath, sourcePath], { timeout: 60000, killSignal: "SIGKILL" });
+        const expectedPath = path.join(outputDirPath, `${path.basename(sourcePath, path.extname(sourcePath))}.pdf`);
+        await fs.access(expectedPath);
+        const pdf = await fs.readFile(expectedPath);
+        return `data:application/pdf;base64,${pdf.toString("base64")}`;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    const reason = lastError?.stderr || lastError?.message || "未找到可用的本地 PPTX 转换程序";
+    throw new Error(`PPTX 转换失败：请确认本机已安装 WPS 或 LibreOffice。${String(reason).slice(0, 220)}`);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function getAudioDurationMs(audioDataUrl) {
   await fs.mkdir(outputDir, { recursive: true });
   const tempDir = await fs.mkdtemp(path.join(outputDir, "align-"));
@@ -221,6 +256,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "OPTIONS") { response.writeHead(204); response.end(); return; }
   try {
     if (request.method === "POST" && request.url === "/api/align") { const result = await alignTimeline(JSON.parse(await readBody(request))); response.writeHead(200, { "Content-Type": "application/json" }); response.end(JSON.stringify({ ok: true, ...result })); return; }
+    if (request.method === "POST" && request.url === "/api/convert-pptx") { const payload = JSON.parse(await readBody(request)); const pdfDataUrl = await convertPptxToPdf(payload.fileDataUrl, payload.fileName); response.writeHead(200, { "Content-Type": "application/json" }); response.end(JSON.stringify({ ok: true, pdfDataUrl })); return; }
     if (request.method === "POST" && request.url === "/api/render") { const jobId = crypto.randomUUID(); jobs.set(jobId, { status: "queued", progress: 0, stage: "等待开始合成", detail: "任务已进入本地渲染队列", startedAt: Date.now(), elapsedMs: 0 }); void runRenderJob(jobId, JSON.parse(await readBody(request))); response.writeHead(202, { "Content-Type": "application/json" }); response.end(JSON.stringify({ ok: true, jobId })); return; }
     if (request.method === "GET" && request.url === "/api/render-history") { const history = await readRenderHistory(); response.writeHead(200, { "Content-Type": "application/json" }); response.end(JSON.stringify({ ok: true, history })); return; }
     if (request.method === "GET" && request.url?.startsWith("/api/render-asset/")) {

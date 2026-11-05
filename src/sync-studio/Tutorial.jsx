@@ -5,8 +5,8 @@ const steps = [
   {
     number: "01",
     title: "准备三份素材",
-    summary: "上传 MP3、标记口播稿 DOCX 和 WPS 导出的 PDF。三份素材都在本地处理。",
-    visual: <div className="sync-tutorial-upload-visual"><div className="sync-tutorial-file ready"><b>✓</b><span><strong>MiniMax MP3</strong><small>已上传音频.mp3</small></span></div><div className="sync-tutorial-file ready"><b>✓</b><span><strong>标记口播稿 DOCX</strong><small>已识别分页标记</small></span></div><div className="sync-tutorial-file ready"><b>✓</b><span><strong>WPS 导出 PDF</strong><small>已载入高清页面</small></span></div></div>
+    summary: "上传 MP3、标记口播稿 DOCX 和 PDF/PPTX 课件。三份素材都在本地处理。",
+    visual: <div className="sync-tutorial-upload-visual"><div className="sync-tutorial-file ready"><b>✓</b><span><strong>MiniMax MP3</strong><small>已上传音频.mp3</small></span></div><div className="sync-tutorial-file ready"><b>✓</b><span><strong>标记口播稿 DOCX</strong><small>已识别分页标记</small></span></div><div className="sync-tutorial-file ready"><b>✓</b><span><strong>上传课件 PDF / PPTX</strong><small>自动转换为高清页面</small></span></div></div>
   },
   {
     number: "02",

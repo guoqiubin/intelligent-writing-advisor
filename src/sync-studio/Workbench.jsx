@@ -13,7 +13,7 @@ export function SyncStudioWorkbench() {
   const [scriptSelected, setScriptSelected] = useState(false);
   const [scriptName, setScriptName] = useState("尚未上传 DOCX");
   const [pdfSelected, setPdfSelected] = useState(false);
-  const [pdfName, setPdfName] = useState("尚未上传 PDF");
+  const [pdfName, setPdfName] = useState("尚未上传 PDF / PPTX");
   const [scriptPages, setScriptPages] = useState([]);
   const [cues, setCues] = useState(demoCues);
   const [captions, setCaptions] = useState(demoCaptions);
@@ -53,7 +53,7 @@ export function SyncStudioWorkbench() {
     reader.onload = () => setAudioDataUrl(String(reader.result || ""));
     reader.readAsDataURL(file);
     setAudioName(file.name);
-    setStatus("音频已载入，等待文稿和 PDF");
+    setStatus("音频已载入，等待文稿和课件");
   }
 
   async function onDocx(event) {
@@ -75,18 +75,31 @@ export function SyncStudioWorkbench() {
     }
   }
 
-  async function onPdf(event) {
+  async function onCourseware(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+    const fileName = file.name.toLowerCase();
+    const isPdf = file.type === "application/pdf" || fileName.endsWith(".pdf");
+    const isPptx = fileName.endsWith(".pptx") || fileName.endsWith(".ppt");
+    if (!isPdf && !isPptx) return setStatus("课件格式不支持，请上传 PDF 或 PPTX");
     setPdfSelected(true);
     setPdfName(file.name);
-    setStatus("正在本地渲染 PDF 页面……");
+    setStatus(isPptx ? "正在本地静默转换 PPTX，并生成高清页面……" : "正在本地渲染 PDF 页面……");
     try {
-      const rendered = await renderPdf(file);
+      let sourceFile = file;
+      if (isPptx) {
+        const fileDataUrl = await readFileAsDataUrl(file);
+        const response = await fetch("http://127.0.0.1:8787/api/convert-pptx", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileDataUrl }) });
+        const converted = await response.json().catch(() => ({}));
+        if (!response.ok || !converted.ok || !converted.pdfDataUrl) throw new Error(converted.error || "PPTX 转换失败");
+        sourceFile = dataUrlToFile(converted.pdfDataUrl, `${file.name.replace(/\.pptx?$/i, "")}.pdf`, "application/pdf");
+      }
+      const rendered = await renderPdf(sourceFile);
       setPages(rendered);
-      setStatus(`已载入 ${rendered.length} 页 PDF，可以开始预览`);
+      setStatus(`已载入 ${rendered.length} 页课件，可以开始预览`);
     } catch (error) {
-      setStatus(`PDF 读取失败：${error instanceof Error ? error.message : "未知错误"}`);
+      setPages([]);
+      setStatus(`课件读取失败：${error instanceof Error ? error.message : "未知错误"}`);
     }
   }
 
@@ -110,10 +123,10 @@ export function SyncStudioWorkbench() {
     if (!audioDataUrl) issues.push({ title: "音频未完成", detail: "请上传可用的 MP3 音频文件。" });
     if (!scriptPages.length) issues.push({ title: "文稿分页标记未完成", detail: "请上传包含 [第 N 张 PPT] 标记的 DOCX 文稿。" });
     const renderedPages = pages.filter((page) => page.url);
-    if (!renderedPages.length) issues.push({ title: "PDF 未完成", detail: "请上传 PDF，并等待页面解析完成。" });
+    if (!renderedPages.length) issues.push({ title: "课件未完成", detail: "请上传 PDF 或 PPTX，并等待页面解析完成。" });
     const referencedPages = [...new Set(scriptPages.map((page) => page.page))].sort((a, b) => a - b);
     const missingPages = referencedPages.filter((page) => !renderedPages.some((item) => item.page === page));
-    if (missingPages.length) issues.push({ title: "PDF 页面无法覆盖文稿", detail: `文稿引用了第 ${missingPages.join("、")} 页，但 PDF 中没有对应页面。` });
+    if (missingPages.length) issues.push({ title: "课件页面无法覆盖文稿", detail: `文稿引用了第 ${missingPages.join("、")} 页，但上传课件中没有对应页面。` });
     if (scriptPages.some((page, index) => index > 0 && page.page !== scriptPages[index - 1].page + 1)) issues.push({ title: "分页顺序异常", detail: "文稿中的 PPT 编号需要连续递增。" });
     if (issues.length) {
       setValidationIssues(issues);
@@ -127,8 +140,8 @@ export function SyncStudioWorkbench() {
     setRenderStartedAt(Date.now());
     setRenderElapsedMs(0);
     setRenderStage("读取素材");
-    setRenderDetail("正在检查音频、文稿分页和 PDF 页面");
-    setRenderStageHistory([{ stage: "读取素材", detail: "正在检查音频、文稿分页和 PDF 页面", active: true }]);
+    setRenderDetail("正在检查音频、文稿分页和课件页面");
+    setRenderStageHistory([{ stage: "读取素材", detail: "正在检查音频、文稿分页和课件页面", active: true }]);
     setVideoDurationMs(0);
     setDownloadUrl("");
     setDownloadKind(renderKind);
@@ -153,7 +166,7 @@ export function SyncStudioWorkbench() {
       const outputCaptions = (aligned.captions || []).filter((caption) => caption.startMs < outputDurationMs).map((caption) => ({ ...caption, endMs: Math.min(caption.endMs, outputDurationMs) }));
       const outputPageNumbers = new Set(outputCues.map((cue) => cue.page));
       const outputPages = isPreview ? renderedPages.filter((page) => outputPageNumbers.has(page.page)) : renderedPages;
-      noteRenderStage("压缩渲染素材", "正在把 PDF 页面转换为适合 1920×1080 视频的高清素材");
+      noteRenderStage("压缩渲染素材", "正在把课件页面转换为适合 1920×1080 视频的高清素材");
       setRenderStage("压缩渲染素材");
       setRenderDetail("正在优化页面数据大小，避免上传超过本地服务限制");
       let renderPages = await prepareRenderPages(outputPages, 1920, .9);
@@ -216,7 +229,7 @@ export function SyncStudioWorkbench() {
         <div className="sync-section-heading"><div><p className="sync-eyebrow">01 / INPUTS</p><h2>输入素材</h2></div><span className="sync-step-dot">1</span></div>
         <SyncUpload label="MiniMax MP3" name={audioName} accept="audio/mpeg,.mp3" onChange={onAudio} ready={audioSelected} statusText={audioUrl ? "已载入，可用于对齐" : "文件已选择"} />
         <SyncUpload label="标记口播稿 DOCX" name={scriptName} accept=".docx" onChange={onDocx} ready={scriptSelected} statusText={scriptPages.length ? "已识别分页标记" : scriptSelected ? "文件已上传，分页标记待检查" : ""} statusTone={scriptSelected && !scriptPages.length ? "warning" : ""} />
-        <SyncUpload label="WPS 导出 PDF" name={pdfName} accept="application/pdf,.pdf" onChange={onPdf} ready={pdfSelected} statusText={pages.some((page) => page.url) ? "已载入页面" : pdfSelected ? "文件已选择，正在解析" : ""} />
+        <SyncUpload label="上传课件 PDF / PPTX" name={pdfName} accept="application/pdf,.pdf,.pptx,.ppt" onChange={onCourseware} ready={pdfSelected} statusText={pages.some((page) => page.url) ? "已载入页面" : pdfSelected ? "文件已选择，正在解析" : ""} />
         <div className="sync-marker-note"><strong>标记格式</strong><code>[第 1 张 PPT]</code><p>标记只用于翻页，不会被朗读或显示在字幕中。系统也兼容旧格式 [第1页]。</p></div>
       </aside>
       <section className="sync-preview-column">
@@ -228,7 +241,7 @@ export function SyncStudioWorkbench() {
         <div className="sync-panel sync-timeline-card"><div className="sync-toolbar"><div><p className="sync-eyebrow">03 / TIMELINE</p><h2>翻页时间线</h2></div><span className="sync-pill">{cues.length} 个翻页节点</span></div><div className="sync-timeline-list">{cues.map((cue) => <button type="button" className={`sync-cue-row ${currentPage === cue.page ? "active" : ""}`} key={cue.page} onClick={() => { setCurrentPage(cue.page); if (audioRef.current) audioRef.current.currentTime = cue.startMs / 1000; }}><span>{formatTime(cue.startMs)}</span><strong>第 {cue.page} 页</strong><span>{cue.anchorText}</span><small>{cue.confidence === null ? "待对齐" : "已对齐"}</small></button>)}</div></div>
         {renderStartedAt && <div className="sync-render-info"><div><span>本轮视频时长</span><strong>{formatDuration(videoDurationMs)}</strong></div><div><span>已用渲染时间</span><strong>{formatDuration(renderElapsedMs)}</strong></div><div className="sync-render-info-wide"><span>当前阶段</span><strong>{renderStage}</strong><small>{renderDetail}</small></div><div className="sync-progress-track"><i style={{ width: `${renderProgress}%` }} /></div></div>}
         {downloadUrl && <div className="sync-download-actions"><a href={downloadUrl} download={downloadKind === "preview" ? "sync-studio-1min-preview.mp4" : "sync-studio.mp4"}>{downloadKind === "preview" ? "下载 1 分钟验收视频 →" : "下载合成 MP4 →"}</a></div>}
-        <div className="sync-service-note"><strong>本地渲染服务</strong><span>PDF、DOCX 解析在浏览器完成；点击生成后调用本机 8787 端口的 Remotion + Chrome + FFmpeg 服务。</span></div>
+        <div className="sync-service-note"><strong>本地渲染服务</strong><span>PDF 在浏览器解析；PPTX 会由本机 WPS/LibreOffice 静默转换为高清页面；点击生成后调用本机 8787 端口的 Remotion + Chrome + FFmpeg 服务。</span></div>
       </section>
     </section>
     {rendering && <RenderProgressModal progress={renderProgress} elapsedMs={renderElapsedMs} stages={renderStageHistory} preview={downloadKind === "preview"} />}
@@ -261,6 +274,8 @@ function ValidationModal({ issues, onClose }) {
 }
 
 function SyncUpload({ label, name, accept, onChange, ready, statusText, statusTone = "" }) { return <label className="sync-upload"><span className={`sync-file-icon ${ready ? "ready" : ""}`}>{ready ? "✓" : "＋"}</span><span><strong>{label}</strong><small>{name}</small>{statusText && <em className={statusTone}>{statusText}</em>}</span><input type="file" accept={accept} onChange={onChange} /></label>; }
+function readFileAsDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(new Error("无法读取课件文件")); reader.readAsDataURL(file); }); }
+function dataUrlToFile(dataUrl, fileName, type) { const [header, encoded] = String(dataUrl).split(","); if (!encoded) throw new Error("PPTX 转换结果格式错误"); const binary = atob(encoded); const bytes = new Uint8Array(binary.length); for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index); return new File([bytes], fileName, { type: type || header.match(/data:([^;]+)/)?.[1] || "application/octet-stream" }); }
 async function prepareRenderPages(pages, maxWidth, quality) {
   return Promise.all(pages.map(async (page) => {
     if (!page.url || !String(page.url).startsWith("data:image/")) return page;
