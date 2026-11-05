@@ -85,17 +85,18 @@ async function convertPptxToPdf(fileDataUrl, fileName) {
     const outputDirPath = path.join(tempDir, "pdf");
     await fs.mkdir(outputDirPath, { recursive: true });
     const converters = [
-      process.env.PPTX_CONVERTER_BIN,
-      "soffice",
-      "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-      process.env.WPS_OFFICE_BIN,
-      "/Applications/wpsoffice.app/Contents/MacOS/wpsoffice"
-    ].filter(Boolean);
+      process.env.WPS_CLI_BIN || "/Applications/wpsoffice.app/Contents/MacOS/wpscli",
+      process.env.PPTX_CONVERTER_BIN || "soffice",
+      "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+    ];
     let lastError;
     for (const converter of converters) {
       try {
-        await execFileAsync(converter, ["--headless", "--convert-to", "pdf", "--outdir", outputDirPath, sourcePath], { timeout: 60000, killSignal: "SIGKILL" });
         const expectedPath = path.join(outputDirPath, `${path.basename(sourcePath, path.extname(sourcePath))}.pdf`);
+        const args = /wpscli$/i.test(converter)
+          ? ["ppt2pdf", sourcePath, "--output", expectedPath, "--image-quality", "high", "--timeout", "60", "--json"]
+          : ["--headless", "--convert-to", "pdf", "--outdir", outputDirPath, sourcePath];
+        await execFileAsync(converter, args, { timeout: 70000, killSignal: "SIGKILL" });
         await fs.access(expectedPath);
         const pdf = await fs.readFile(expectedPath);
         return `data:application/pdf;base64,${pdf.toString("base64")}`;
